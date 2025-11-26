@@ -1,0 +1,837 @@
+from flask import Flask, render_template_string
+
+app = Flask(__name__)
+
+HTML_PAGE = r"""
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ultimate README Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Markdown parser -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #050816;
+      --bg-soft: rgba(15, 23, 42, 0.85);
+      --bg-softer: rgba(15, 23, 42, 0.6);
+      --fg: #e5e7eb;
+      --accent: #00e5ff;
+      --accent-soft: rgba(56, 189, 248, 0.2);
+      --border-subtle: rgba(148, 163, 184, 0.5);
+      --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.75);
+    }
+
+    [data-theme="light"] {
+      --bg: #f3f4f6;
+      --bg-soft: rgba(255, 255, 255, 0.95);
+      --bg-softer: rgba(243, 244, 246, 0.9);
+      --fg: #111827;
+      --accent: #2563eb;
+      --accent-soft: rgba(59, 130, 246, 0.15);
+      --border-subtle: rgba(209, 213, 219, 1);
+      --shadow-soft: 0 18px 30px rgba(15, 23, 42, 0.18);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 1.8rem;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+      background: radial-gradient(circle at top, #1d2671 0, #000 45%) fixed;
+      color: var(--fg);
+      min-height: 100vh;
+    }
+
+    .app-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      gap: 1rem;
+    }
+
+    .app-title {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .app-title h1 {
+      margin: 0;
+      font-size: 1.9rem;
+      letter-spacing: 0.04em;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .app-title h1 span.icon {
+      display: inline-flex;
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 30% 0, #a5b4fc, #0ea5e9);
+      box-shadow: 0 0 18px rgba(59, 130, 246, 0.8);
+      font-size: 1.1rem;
+    }
+
+    .app-title p {
+      margin: 0;
+      font-size: 0.95rem;
+      opacity: 0.8;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .pill {
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      border: 1px solid var(--border-subtle);
+      background: rgba(15, 23, 42, 0.5);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    [data-theme="light"] .pill {
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    .pill-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 8px rgba(34, 197, 94, 0.8);
+    }
+
+    .theme-toggle {
+      border-radius: 999px;
+      padding: 0.25rem 0.5rem;
+      border: 1px solid var(--border-subtle);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      background: var(--bg-softer);
+      font-size: 0.8rem;
+    }
+
+    .theme-toggle span {
+      font-size: 1rem;
+    }
+
+    .theme-toggle label {
+      cursor: pointer;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 1.4rem;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        padding: 1rem;
+      }
+      .main-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .panel {
+      background: var(--bg-soft);
+      border-radius: 18px;
+      padding: 1.3rem 1.4rem;
+      box-shadow: var(--shadow-soft);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.85rem;
+    }
+
+    .panel-header h2 {
+      margin: 0;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .panel-header h2 span.icon {
+      font-size: 1.05rem;
+    }
+
+    .panel-header small {
+      font-size: 0.77rem;
+      opacity: 0.7;
+    }
+
+    label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      display: block;
+      margin-top: 0.7rem;
+      margin-bottom: 0.15rem;
+      opacity: 0.9;
+    }
+
+    input[type="text"],
+    textarea,
+    select {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      background: var(--bg-softer);
+      color: var(--fg);
+      padding: 0.55rem 0.8rem;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus,
+    select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 70px;
+    }
+
+    .row-2 {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 0.8rem;
+    }
+
+    @media (max-width: 700px) {
+      .row-2 {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .field-note {
+      font-size: 0.72rem;
+      opacity: 0.7;
+      margin-top: 0.15rem;
+    }
+
+    .badge-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.35rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .btn {
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.83rem;
+      font-weight: 600;
+      padding: 0.45rem 0.95rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: transform 0.1s ease, box-shadow 0.15s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #38bdf8);
+      color: #0b1120;
+      box-shadow: 0 10px 25px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn-secondary {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--fg);
+      border: 1px dashed rgba(148, 163, 184, 0.7);
+    }
+
+    .btn-sm {
+      padding: 0.3rem 0.7rem;
+      font-size: 0.78rem;
+    }
+
+    .actions-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.9rem;
+      flex-wrap: wrap;
+    }
+
+    .preview-tabs {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .tab-btn {
+      flex: 0 0 auto;
+      padding: 0.3rem 0.7rem;
+      font-size: 0.78rem;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--fg);
+      opacity: 0.7;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .tab-btn:hover {
+      opacity: 0.9;
+    }
+
+    .tab-btn.active {
+      border-color: rgba(148, 163, 184, 0.8);
+      background: rgba(15, 23, 42, 0.75);
+      opacity: 1;
+    }
+
+    [data-theme="light"] .tab-btn.active {
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    .preview-body {
+      background: #020617;
+      border-radius: 12px;
+      border: 1px solid rgba(30, 64, 175, 0.8);
+      padding: 0.9rem;
+      max-height: 540px;
+      overflow: auto;
+      font-size: 0.85rem;
+    }
+
+    [data-theme="light"] .preview-body {
+      background: #0b1120;
+      color: #e5e7eb;
+    }
+
+    .preview-body pre {
+      margin: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .preview-rendered {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+    }
+
+    .preview-rendered h1,
+    .preview-rendered h2,
+    .preview-rendered h3 {
+      margin-top: 0.7rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .preview-rendered p {
+      margin-top: 0.25rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .preview-rendered code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.83rem;
+      background: rgba(15, 23, 42, 0.9);
+      padding: 0.05rem 0.25rem;
+      border-radius: 4px;
+    }
+
+    .preview-rendered pre code {
+      display: block;
+      padding: 0.55rem 0.65rem;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.95);
+      overflow-x: auto;
+    }
+
+    .preview-rendered ul {
+      padding-left: 1.2rem;
+    }
+
+    .preview-rendered blockquote {
+      border-left: 3px solid rgba(148, 163, 184, 0.9);
+      padding-left: 0.6rem;
+      margin-left: 0;
+      color: #cbd5f5;
+      opacity: 0.9;
+    }
+
+    .preview-rendered img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        color: #000000;
+        padding: 0;
+      }
+      .app-header,
+      .panel:first-of-type {
+        display: none !important;
+      }
+      .panel:last-of-type {
+        box-shadow: none;
+        border-radius: 0;
+        border: none;
+      }
+      .preview-tabs {
+        display: none;
+      }
+      .preview-body {
+        border: none;
+        max-height: none;
+        background: white;
+        color: black;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-title">
+        <h1><span class="icon">📄</span> Ultimate README Generator</h1>
+        <p>All-rounder generator for any GitHub project — apps, AI, research, APIs, tools, anything.</p>
+      </div>
+      <div class="header-actions">
+        <div class="pill">
+          <span class="pill-dot"></span>
+          <span>Local · Offline · Yours</span>
+        </div>
+        <button class="theme-toggle" id="themeToggle" type="button">
+          <span id="themeIcon">🌙</span>
+          <label>Dark mode</label>
+        </button>
+      </div>
+    </header>
+
+    <main class="main-grid">
+      <!-- LEFT: FORM -->
+      <section class="panel">
+        <div class="panel-header">
+          <h2><span class="icon">✏️</span> Project Details</h2>
+          <small>Fill what you need — empty sections are skipped.</small>
+        </div>
+
+        <div class="row-2">
+          <div>
+            <label for="title">Project Title</label>
+            <input id="title" type="text" placeholder="e.g. Lung Cancer Classification Toolkit">
+          </div>
+          <div>
+            <label for="tagline">Tagline</label>
+            <input id="tagline" type="text" placeholder="Short one-line summary">
+          </div>
+        </div>
+
+        <label for="description">Description</label>
+        <textarea id="description" placeholder="Explain what this project does and why it exists."></textarea>
+
+        <hr style="margin: 1rem 0; border: none; border-top: 1px dashed rgba(148,163,184,0.4);">
+
+        <div class="row-2">
+          <div>
+            <label for="ghUser">GitHub Username</label>
+            <input id="ghUser" type="text" placeholder="optional">
+          </div>
+          <div>
+            <label for="ghRepo">Repository Name</label>
+            <input id="ghRepo" type="text" placeholder="optional">
+          </div>
+        </div>
+
+        <label for="mainTech">Main Stack / Tech (for badges)</label>
+        <input id="mainTech" type="text" placeholder="e.g. Python · PyTorch · Flask">
+
+        <label for="badges">Badges</label>
+        <textarea id="badges" placeholder="Markdown for shields.io badges (optional)"></textarea>
+        <div class="badge-row">
+          <button type="button" class="btn btn-sm btn-secondary" id="generateBadges">
+            ⚙️ Auto-generate badges
+          </button>
+          <span class="field-note">Uses shields.io. You can edit the result.</span>
+        </div>
+
+        <label for="features">Features</label>
+        <textarea id="features" placeholder="- Feature 1&#10;- Feature 2&#10;- Feature 3"></textarea>
+
+        <label for="installation">Installation</label>
+        <textarea id="installation" placeholder="How to install: commands, dependencies, environment."></textarea>
+
+        <label for="usage">Usage</label>
+        <textarea id="usage" placeholder="How to run: scripts, CLI, UI, examples."></textarea>
+
+        <label for="config">Configuration / Settings</label>
+        <textarea id="config" placeholder="Explain config files, environment variables, or options."></textarea>
+
+        <label for="api">API / Commands / Functionality</label>
+        <textarea id="api" placeholder="- Command / endpoint / function&#10;- What it does"></textarea>
+
+        <label for="screenshots">Screenshots</label>
+        <textarea id="screenshots" placeholder="![Screenshot](path/to/image.png)"></textarea>
+
+        <label for="contributing">Contributing</label>
+        <textarea id="contributing" placeholder="Guidelines for contributions, issues, and pull requests."></textarea>
+
+        <div class="row-2">
+          <div>
+            <label for="license">License</label>
+            <select id="license">
+              <option value="">(None)</option>
+              <option value="MIT">MIT</option>
+              <option value="Apache-2.0">Apache 2.0</option>
+              <option value="GPL-3.0">GPL 3.0</option>
+              <option value="BSD-3-Clause">BSD 3-Clause</option>
+              <option value="Custom">Custom</option>
+            </select>
+          </div>
+          <div>
+            <label for="contact">Contact</label>
+            <input id="contact" type="text" placeholder="Email / profile / website">
+          </div>
+        </div>
+
+        <label for="licenseText">Custom License Text</label>
+        <textarea id="licenseText" placeholder="Only used if License = Custom."></textarea>
+
+        <div class="actions-row">
+          <button type="button" class="btn btn-primary" id="generateBtn">✨ Generate README</button>
+          <button type="button" class="btn btn-secondary" id="downloadBtn">💾 Download README.md</button>
+          <button type="button" class="btn btn-ghost" id="pdfBtn">📄 Export as PDF</button>
+        </div>
+      </section>
+
+      <!-- RIGHT: PREVIEW -->
+      <section class="panel">
+        <div class="panel-header">
+          <h2><span class="icon">👀</span> Live Preview</h2>
+          <small>Switch between raw Markdown and rendered view.</small>
+        </div>
+
+        <div class="preview-tabs">
+          <button type="button" class="tab-btn active" data-mode="raw">Raw Markdown</button>
+          <button type="button" class="tab-btn" data-mode="rendered">Rendered View</button>
+        </div>
+
+        <div class="preview-body">
+          <div id="previewRaw">
+            <pre id="markdownOutput"></pre>
+          </div>
+          <div id="previewRendered" class="preview-rendered" style="display:none;"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // ---------- THEME TOGGLE (Session-based, no localStorage) ----------
+    (function() {
+      const root = document.documentElement;
+      const btn = document.getElementById('themeToggle');
+      const icon = document.getElementById('themeIcon');
+      
+      // Store theme in memory (session-based)
+      let currentTheme = 'dark';
+
+      function setTheme(mode) {
+        currentTheme = mode;
+        if (mode === 'light') {
+          root.setAttribute('data-theme', 'light');
+          icon.textContent = '☀️';
+          btn.querySelector('label').textContent = 'Light mode';
+        } else {
+          root.removeAttribute('data-theme');
+          icon.textContent = '🌙';
+          btn.querySelector('label').textContent = 'Dark mode';
+        }
+      }
+
+      // Initialize with dark theme
+      setTheme('dark');
+
+      btn.addEventListener('click', () => {
+        setTheme(currentTheme === 'light' ? 'dark' : 'light');
+      });
+    })();
+
+    // ---------- BUILD MARKDOWN ----------
+    function buildMarkdownFromFields() {
+      const v = id => document.getElementById(id).value.trim();
+
+      const title = v('title');
+      const tagline = v('tagline');
+      const description = v('description');
+      const badges = v('badges');
+      const features = v('features');
+      const installation = v('installation');
+      const usage = v('usage');
+      const config = v('config');
+      const api = v('api');
+      const screenshots = v('screenshots');
+      const contributing = v('contributing');
+      const license = v('license');
+      const licenseText = v('licenseText');
+      const contact = v('contact');
+
+      let md = '';
+
+      if (title) {
+        md += `# ${title}\n\n`;
+      }
+
+      if (tagline) {
+        md += `> ${tagline}\n\n`;
+      }
+
+      if (badges) {
+        md += `${badges}\n\n`;
+      }
+
+      if (description) {
+        md += `## Description\n\n${description}\n\n`;
+      }
+
+      if (features) {
+        md += `## Features\n\n${features}\n\n`;
+      }
+
+      if (installation) {
+        md += `## Installation\n\n${installation}\n\n`;
+      }
+
+      if (usage) {
+        md += `## Usage\n\n${usage}\n\n`;
+      }
+
+      if (config) {
+        md += `## Configuration / Settings\n\n${config}\n\n`;
+      }
+
+      if (api) {
+        md += `## API / Commands / Functionality\n\n${api}\n\n`;
+      }
+
+      if (screenshots) {
+        md += `## Screenshots\n\n${screenshots}\n\n`;
+      }
+
+      if (contributing) {
+        md += `## Contributing\n\n${contributing}\n\n`;
+      }
+
+      if (license) {
+        md += `## License\n\n`;
+        if (license === 'MIT') {
+          md += `This project is licensed under the MIT License.\n\n`;
+        } else if (license === 'Apache-2.0') {
+          md += `Licensed under the Apache License 2.0.\n\n`;
+        } else if (license === 'GPL-3.0') {
+          md += `Distributed under the GNU GPLv3.\n\n`;
+        } else if (license === 'BSD-3-Clause') {
+          md += `Licensed under the BSD 3-Clause License.\n\n`;
+        } else if (license === 'Custom' && licenseText) {
+          md += `${licenseText}\n\n`;
+        }
+      }
+
+      if (contact) {
+        md += `## Contact\n\n${contact}\n\n`;
+      }
+
+      return md.trim() + '\n';
+    }
+
+    // ---------- UPDATE PREVIEW ----------
+    function updatePreview() {
+      const md = buildMarkdownFromFields();
+      const rawEl = document.getElementById('markdownOutput');
+      const renderedEl = document.getElementById('previewRendered');
+
+      rawEl.textContent = md || '# Start typing to see preview...';
+
+      try {
+        if (md) {
+          renderedEl.innerHTML = marked.parse(md);
+        } else {
+          renderedEl.innerHTML = '<p style="opacity:0.5;">Start typing to see preview...</p>';
+        }
+      } catch (e) {
+        renderedEl.textContent = md;
+      }
+    }
+
+    // ---------- AUTO-BADGE GENERATION ----------
+    document.getElementById('generateBadges').addEventListener('click', () => {
+      const ghUser = document.getElementById('ghUser').value.trim();
+      const ghRepo = document.getElementById('ghRepo').value.trim();
+      const mainTech = document.getElementById('mainTech').value.trim();
+      const badgesEl = document.getElementById('badges');
+
+      let lines = [];
+
+      if (ghUser && ghRepo) {
+        const base = `${ghUser}/${ghRepo}`;
+        lines.push(`![Stars](https://img.shields.io/github/stars/${base}?style=flat-square)`);
+        lines.push(`![Forks](https://img.shields.io/github/forks/${base}?style=flat-square)`);
+        lines.push(`![Issues](https://img.shields.io/github/issues/${base}?style=flat-square)`);
+        lines.push(`![Last commit](https://img.shields.io/github/last-commit/${base}?style=flat-square)`);
+      }
+
+      if (mainTech) {
+        const techFormatted = mainTech.replace(/\s+/g, '%20');
+        lines.push(
+          `![Built with](https://img.shields.io/badge/built%20with-${techFormatted}-blue?style=flat-square)`
+        ); 
+      }
+
+      if (!lines.length) {
+        alert('Please fill in GitHub Username & Repository Name, or Main Stack/Tech to generate badges.');
+        return;
+      }
+
+      badgesEl.value = lines.join(' ');
+      updatePreview();
+    });
+
+    // ---------- TABS (RAW / RENDERED) ----------
+    (function() {
+      const tabs = document.querySelectorAll('.tab-btn');
+      const raw = document.getElementById('previewRaw');
+      const rendered = document.getElementById('previewRendered');
+
+      tabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabs.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+
+          const mode = btn.getAttribute('data-mode');
+          if (mode === 'raw') {
+            raw.style.display = '';
+            rendered.style.display = 'none';
+          } else {
+            raw.style.display = 'none';
+            rendered.style.display = '';
+          }
+        });
+      });
+    })();
+
+    // ---------- DOWNLOAD FILE ----------
+    function downloadReadme() {
+      const md = buildMarkdownFromFields();
+      if (!md || md === '\n') {
+        alert('Please fill in some fields before downloading.');
+        return;
+      }
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'README.md';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // ---------- EXPORT AS PDF ----------
+    function exportAsPdf() {
+      const md = buildMarkdownFromFields();
+      if (!md || md === '\n') {
+        alert('Please fill in some fields before exporting to PDF.');
+        return;
+      }
+      window.print();
+    }
+
+    // ---------- WIRE UP EVENTS ----------
+    (function() {
+      const inputIds = [
+        'title', 'tagline', 'description', 'badges', 'features', 'installation',
+        'usage', 'config', 'screenshots', 'api', 'contributing',
+        'licenseText', 'contact', 'ghUser', 'ghRepo', 'mainTech'
+      ];
+
+      inputIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', updatePreview);
+        }
+      });
+
+      document.getElementById('license').addEventListener('change', updatePreview);
+
+      document.getElementById('generateBtn').addEventListener('click', updatePreview);
+      document.getElementById('downloadBtn').addEventListener('click', () => {
+        updatePreview();
+        setTimeout(downloadReadme, 100);
+      });
+      document.getElementById('pdfBtn').addEventListener('click', () => {
+        updatePreview();
+        setTimeout(exportAsPdf, 100);
+      });
+
+      // Initial preview
+      updatePreview();
+    })();
+  </script>
+</body>
+</html>
+"""
+
+@app.route("/")
+def index():
+    return render_template_string(HTML_PAGE)
+
+if __name__ == "__main__":
+    app.run(debug=True)
